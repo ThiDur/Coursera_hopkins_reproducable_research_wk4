@@ -1,0 +1,71 @@
+---
+title: "Untitled"
+author: "Thijs Durieux"
+date: "24 maart 2019"
+output: html_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r read data,echo=TRUE}
+df <- read.csv("repdata_data_StormData.csv.bz2")
+tbl <- as_tibble(df)
+```
+
+```{r include year, echo=TRUE}
+tbl <- mutate(.data = tbl, year=sub(" .*", "", sub("^.*/", "", tbl$BGN_DATE)))
+```
+
+```{r filter for the last 20 years, echo=TRUE}
+tbl <- filter(tbl, year > 1994)
+```
+
+```{r most damaging event, echo=TRUE}
+damage_per_event <- tbl %>%
+    group_by(EVTYPE) %>%
+    summarize(event_fatalities=sum(FATALITIES, na.rm=TRUE),
+              event_injuries=sum(INJURIES, na.rm=TRUE),
+              event_damage=sum(PROPDMG) + sum(CROPDMG))
+```
+
+```{r most damaging event, echo=TRUE}
+ most_harmfull <- damage_per_event %>%
+    select(EVTYPE, event_fatalities, event_injuries) %>%
+    arrange(desc(event_fatalities))
+```
+
+```{r show top 1 most harmfull, echo=TRUE}
+top_n(most_harmfull, 3)
+```
+
+```{r show top 5 most harmful over time, echo=TRUE}
+top_5_most_harmfull_over_time <- inner_join(damage_per_event_year, top_n(most_harmfull, 5), by='EVTYPE')
+
+ggplot(data=top_5_most_harmfull_over_time, aes(x=year, y=event_fatalities.x)) +
+    geom_bar(stat='identity') +
+    xlab('interval') +
+    ylab('Averiag number of steps') +
+    facet_wrap(~EVTYPE)
+```
+
+```{r most damaging event, echo=TRUE}
+ most_economic_damage <- damage_per_event %>%
+    select(EVTYPE, year, event_damage) %>%
+    arrange(desc(event_damage))
+```
+
+```{r top 3 most economic damage}
+top_n(most_economic_damage, 3)
+```
+
+```{r most economic damage over time, echo=TRUE}
+top_5_most_economic_damage_over_time <- inner_join(most_economic_damage, top_n(most_economic_damage, 5), by='EVTYPE')
+
+ggplot(data=top_5_most_economic_damage_over_time, aes(x=year, y=event_damage.x)) +
+    geom_bar(stat='identity') +
+    xlab('interval') +
+    ylab('Averiag number of steps') +
+    facet_wrap(~EVTYPE)
+```
