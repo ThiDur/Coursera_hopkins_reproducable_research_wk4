@@ -1,71 +1,86 @@
 ---
-title: "Untitled"
-author: "Thijs Durieux"
+title: "Damage by natural disasters"
+author: "TD"
 date: "24 maart 2019"
 output: html_document
 ---
 
 ```{r setup, include=TRUE}
+library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Synopsis
+Data on natural disasters is loaded to determine the most damaging events in both loss of life and economic data. The date of desasters is cleaned to event year and then the data is summarized per event and year, taking into account only the last 20 years. By summarizing the data it is seen that excessive heat causes the most fatalities with a peak in 2002. Tornado's causes the second most fatalities but the most injuries. Flash floods cause the most economic damage closely followed by tornado's
+
+# Data processing
 ```{r read data,echo=TRUE}
 df <- read.csv("repdata_data_StormData.csv.bz2")
 tbl <- as_tibble(df)
 ```
 
+The year of the event is taken from the event date using regular expressions first removing everything before and including the last / then removing everything after and including the first space. 
 ```{r include year, echo=TRUE}
 tbl <- mutate(.data = tbl, year=sub(" .*", "", sub("^.*/", "", tbl$BGN_DATE)))
 ```
 
+Next only the last 20 years of the analysis are taken because characterstics of events (like weather events) as well as consequences (e.g. due to increasing population) change. To keep the data relevant only recent data is needed.
+
 ```{r filter for the last 20 years, echo=TRUE}
-tbl <- filter(tbl, year > 1994)
+tbl <- filter(tbl, year > 1991)
 ```
 
-```{r most damaging event, echo=TRUE}
-damage_per_event <- tbl %>%
-    group_by(EVTYPE) %>%
+Then the damage per event over time is taken by grouping per event and taking the sum of fatalities, the sum of injuries and the sum of property damage plus crop damage. 
+
+```{r damage per event over time, echo=TRUE}
+damage_per_event_year <- tbl %>%
+    group_by(EVTYPE, year) %>%
     summarize(event_fatalities=sum(FATALITIES, na.rm=TRUE),
               event_injuries=sum(INJURIES, na.rm=TRUE),
               event_damage=sum(PROPDMG) + sum(CROPDMG))
 ```
 
+# Results
+The data is then grouped by event type and summarized for fatalities and injuries, showing that Excessive Heat is the even with the most fatalities closely followed by tornado's with tornado's causing many more injuries.
 ```{r most damaging event, echo=TRUE}
- most_harmfull <- damage_per_event %>%
-    select(EVTYPE, event_fatalities, event_injuries) %>%
-    arrange(desc(event_fatalities))
+top_5_most_harmfull <- tbl %>%
+    group_by(EVTYPE) %>%
+    summarize(event_fatalities=sum(FATALITIES, na.rm=TRUE),
+              event_injuries=sum(INJURIES, na.rm=TRUE)) %>%
+    arrange(desc(event_fatalities)) %>%
+    top_n(5)
+top_5_most_harmfull
 ```
 
-```{r show top 1 most harmfull, echo=TRUE}
-top_n(most_harmfull, 3)
-```
 
+To get a feeling of the events over time a time series is taken from 1991 till 2011 per year. It can clearly be seen that there is large variation of the number of fatalitieis per year for Excessive Heat (with 500 fatalities in 2011). For Tornado's the time series is more constant with one exception with close to 600 fatalities in 2002.
 ```{r show top 5 most harmful over time, echo=TRUE}
-top_5_most_harmfull_over_time <- inner_join(damage_per_event_year, top_n(most_harmfull, 5), by='EVTYPE')
+top_5_most_harmfull_over_time <- inner_join(damage_per_event_year, top_5_most_harmfull, by='EVTYPE')
 
 ggplot(data=top_5_most_harmfull_over_time, aes(x=year, y=event_fatalities.x)) +
     geom_bar(stat='identity') +
-    xlab('interval') +
+    scale_x_discrete("Interval", c(1992, 1997, 2002, 2007, 2011)) +
     ylab('Averiag number of steps') +
     facet_wrap(~EVTYPE)
 ```
 
-```{r most damaging event, echo=TRUE}
- most_economic_damage <- damage_per_event %>%
-    select(EVTYPE, year, event_damage) %>%
-    arrange(desc(event_damage))
+The data is then grouped by event type and summarized for property damage plus crop damage (together named economic damage) and then ordered by by economic damage. This shows that flash floods causes the most economic data closely followed by tornado's
+```{r top 5 most economic damage, echo=TRUE}
+ top_5_most_economic_damage <- tbl %>%
+    group_by(EVTYPE) %>%
+    summarize(economic_damage=sum(PROPDMG, na.rm=TRUE) + sum(CROPDMG, na.rm=TRUE)) %>%
+    arrange(desc(economic_damage)) %>%
+    top_n(5)
+top_5_most_economic_damage
 ```
 
-```{r top 3 most economic damage}
-top_n(most_economic_damage, 3)
-```
-
+Plotting the economic data per year over the last 20 years of data shows that the damage by flash floodss is relatively constant over time though seems to be increasing, similar to the data for tornado's
 ```{r most economic damage over time, echo=TRUE}
-top_5_most_economic_damage_over_time <- inner_join(most_economic_damage, top_n(most_economic_damage, 5), by='EVTYPE')
+top_5_most_economic_damage_over_time <- inner_join(damage_per_event_year, top_5_most_economic_damage, by='EVTYPE')
 
-ggplot(data=top_5_most_economic_damage_over_time, aes(x=year, y=event_damage.x)) +
+ggplot(data=top_5_most_economic_damage_over_time, aes(x=year, y=event_damage)) +
     geom_bar(stat='identity') +
-    xlab('interval') +
+    scale_x_discrete("Interval", c(1992, 1997, 2002, 2007, 2011)) +
     ylab('Averiag number of steps') +
     facet_wrap(~EVTYPE)
 ```
